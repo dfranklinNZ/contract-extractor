@@ -42,6 +42,8 @@ def _try_parse_date(s: str):
     return None
 
 def exact_match(extracted_value: str | None, golden: dict) -> tuple[str, str, int, int]:
+    ##the eval for items where I want an ... exact match - returns a tuple of (verdict, reasoning, tokens, wall_ms) where verdict is one of CORRECT / PARTIAL / WRONG. exact_match and set_gradable are local and always report 0 tokens / 0 ms; llm_judge makes an API call and reports real usage, used by the eval run to track cost/latency.
+    ##compares a string of the "Extracted value" and the "golden" value DICTionary
     if not extracted_value:
         return WRONG, "no value extracted", 0, 0
 
@@ -62,6 +64,7 @@ def exact_match(extracted_value: str | None, golden: dict) -> tuple[str, str, in
     return WRONG, f"expected {golden['correct_value']!r}, got {extracted_value!r}", 0, 0
 
 def set_gradable(extracted_value: str | None, golden: dict) -> tuple[str, str, int, int]:
+    ##for grading a group / set of things together
     extracted_names = [_normalize_text(n) for n in re.split(r",|;", extracted_value or "") if n.strip()]
     golden_names = [_normalize_text(n) for n in golden["correct_value"] if n.strip()]
     if not golden_names:

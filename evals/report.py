@@ -1,3 +1,5 @@
+##not going to comment this, happy to not understand it...
+
 """Generate a static HTML report from eval_contracts.db.
 
 No server, no template engine — just reads the DB and writes plain HTML you

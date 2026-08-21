@@ -74,8 +74,8 @@ def load_golden(contract_filter: list[str] | None) -> dict:
     return golden
 
 def run(contract_filter: list[str] | None, run_id: str | None) -> None:
-    golden = load_golden(contract_filter)
-    run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    golden = load_golden(contract_filter) ## load golden above, takes a list of contract IDs, 
+    run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") #set run id or use timestamp
     run_timestamp = datetime.now(timezone.utc).isoformat()
     conn = init_db(DB_PATH)
     run_t0 = time.perf_counter()
@@ -85,24 +85,26 @@ def run(contract_filter: list[str] | None, run_id: str | None) -> None:
     total_tokens = 0
 
     failed = 0
-    for contract_id, entry in golden.items():
-        try:
-            pdf_path = RAW_DIR / entry["pdf_path"]
-            pages = parse.pdf_to_pages(str(pdf_path))
-            contract_text = "\n\n".join(f"[page {p['page']}]\n{p['text']}" for p in pages)
-            result, extraction_usage, extraction_wall_ms = extract.extract_with_usage(contract_text)
+    for contract_id, entry in golden.items(): #double loop > goes through each 'entry' for each contract id
+        try: ## individual try / exception block for each PDF contract 
+            pdf_path = RAW_DIR / entry["pdf_path"] 
+            pages = parse.pdf_to_pages(str(pdf_path)) #runs the normal parsing that returns list of dicts
+            contract_text = "\n\n".join(f"[page {p['page']}]\n{p['text']}" for p in pages) #joins all the text back up to send to claude
+            result, extraction_usage, extraction_wall_ms = extract.extract_with_usage(contract_text) ##get the extraction done from main code module
             extraction_tokens = extraction_usage["input_tokens"] + extraction_usage["output_tokens"]
-            total_tokens += extraction_tokens
+            total_tokens += extraction_tokens ##measure me tokens used, for effeciency and what not.... 
 
-            golden_by_field = {f["field_name"]: f for f in entry["fields"]}
-            for field_name, clause in result.fields():
+            golden_by_field = {f["field_name"]: f for f in entry["fields"]} #so entry is ... , this ...
+            for field_name, clause in result.fields(): ##each result is a contract (dict), with field dicts; loops field name, then clause
                 golden_field = golden_by_field.get(field_name)
                 if golden_field is None:
-                    continue
-                verdict, reasoning, judge_tokens, judge_wall_ms = grade_field(field_name, clause, golden_field)
-                total_tokens += judge_tokens
+                    continue ##dunno what this does if field in none??
+                verdict, reasoning, judge_tokens, judge_wall_ms = grade_field(field_name, clause, golden_field) ## GRADING
+                #sends to graders.py, grade field, uses FIELD Graders json to decide the TYPE of grading:
+                #e.g.  "parties": "set","effective_date": "exact","termination_clause": "judge"
+                total_tokens += judge_tokens ##token counting.... 
                 verdict_counts[verdict] += 1
-                rows.append({
+                rows.append({ ##the row data below for saving to sql lite db
                     "run_id": run_id,
                     "contract_id": contract_id,
                     "field_name": field_name,
@@ -127,7 +129,7 @@ def run(contract_filter: list[str] | None, run_id: str | None) -> None:
                 f.write(f"- {run_timestamp} | {contract_id} | {e!r}\n")
             print(f"  {contract_id}: FAILED ({e})", flush=True)
 
-    conn.executemany(
+    conn.executemany(. ##database connection CONN, runs SQL below to insert these values dynamically
         """
         INSERT INTO eval_results (
             run_id, contract_id, field_name, grader_type, extracted_value, extracted_source_quote,
@@ -163,14 +165,14 @@ def run(contract_filter: list[str] | None, run_id: str | None) -> None:
     print(f"\nrun {run_id}: {verdict_counts} score={score:.2f} "
           f"tokens={total_tokens} time={total_wall_ms / 1000:.1f}s ({failed} contracts failed)")
 
-def _parse_args(argv=None):
+def _parse_args(argv=None):  ##takes in the args from command line, size of eval (contracts) 
     parser = argparse.ArgumentParser(description="Run the contract-extraction eval suite.")
     parser.add_argument("--contracts", help="Comma-separated contract_ids to run (default: all in golden.json)")
     parser.add_argument("--run-id", help="Override the run id (default: a timestamp)")
-    return parser.parse_args(argv)
+    return parser.parse_args(argv) ##example on command line: python -m evals.run --contracts CreditcardscomInc_2020-01-01, CybergyHoldingsInc_2021-05-15 --run-id my_custom_run_id
 
-def main(argv=None) -> None:
-    args = _parse_args(argv)
+def main(argv=None) -> None:  #takes in ARGV from command line
+    args = _parse_args(argv) #parses the ARGuments ^^ above
     contract_filter = args.contracts.split(",") if args.contracts else None
     run(contract_filter, args.run_id)
 
