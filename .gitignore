@@ -10,3 +10,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Generated data / reports (regenerate via the scripts, don't commit)
+*.db
+evals/report.html
+notes/failure-log.md
+
+# Local Claude Code settings
+.claude/settings.local.json
